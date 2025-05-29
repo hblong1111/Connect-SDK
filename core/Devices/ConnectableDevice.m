@@ -26,7 +26,6 @@
 #import "TextInputControl.h"
 #import "CTGuid.h"
 #import "DiscoveryManager.h"
-#import "AirPlayServiceHTTP.h"
 
 @implementation ConnectableDevice
 {
@@ -45,7 +44,6 @@
     {
         _consolidatedServiceDescription = [ServiceDescription new];
         _services = [[NSMutableDictionary alloc] init];
-        NSLog(@"_services initialized: %@", _services);
     }
 
     return self;
@@ -202,88 +200,15 @@
         dispatch_on_main(^{ [self.delegate connectableDeviceReady:self]; });
     } else
     {
-        
-
         [_services enumerateKeysAndObjectsUsingBlock:^(id key, DeviceService *service, BOOL *stop)
         {
-//            NSLog(@"%@ %@", service.serviceName, @"207 ");
-//            if (!service.connected)
-//
-//                [service connect];
-            
-            NSLog(@"%@ %@", service.serviceName, @"205 This is an additional string");
-            if (!service.connected){
-                if  ([service.serviceName  isEqual: @"Roku"]) {
-                    [service connect];
-                    NSLog(@"%@ %@", service.serviceName, @"209 This is an additional string");
-                }else {
-                    [service disconnect];
-                }
-            }
+            if (!service.connected)
+                [service connect];
         }];
     }
 
     [[NSNotificationCenter defaultCenter] addObserver:self selector:@selector(disconnect) name:kConnectSDKWirelessSSIDChanged object:nil];
 }
-
-- (void)connectWithParam:(int)param
-{
-    if (self.connected)
-    {
-        dispatch_on_main(^{ [self.delegate connectableDeviceReady:self]; });
-    }
-    else
-    {
-        [_services enumerateKeysAndObjectsUsingBlock:^(id key, DeviceService *service, BOOL *stop)
-        {
-            if (!service.connected){
-                if (param == 0) {
-                    if  ([service.serviceName  isEqual: @"Roku"]) {
-                        [service connect];
-                        
-                    }else {
-                        [service disconnect];
-                    }
-                }else if  (param == 4){
-                   if ([service.serviceName  isEqual: @"Chromecast"]) {
-                       [service connect];
-                   }else {
-                       [service disconnect];
-                   }
-                                   
-                }
-                
-                else if  (param == 2){
-                   if ([service.serviceName  isEqual: @"webOS TV"]) {
-                       [service connect];
-                   }else {
-                       [service disconnect];
-                   }
-                                   
-                }
-                      else if  (param == 5){
-               if ([service.serviceName  isEqual: @"DLNA"]) {
-                   [service connect];
-               }else {
-                   [service disconnect];
-               }
-                               
-            }
-//
-                
-                else {
-                    [service connect];
-                }
-            }
-
-        }];
-        
-        
-    }
-
-    [[NSNotificationCenter defaultCenter] addObserver:self selector:@selector(disconnect) name:kConnectSDKWirelessSSIDChanged object:nil];
-}
-
 
 - (void) disconnect
 {
@@ -359,12 +284,11 @@
     return _services.count > 0;
 }
 
-- (void)addService:(DeviceService *)service
+- (void) addService:(DeviceService *)service
 {
     DeviceService *existingService = [_services objectForKey:service.serviceName];
 
     NSArray *oldCapabilities = self.capabilities;
-    NSLog(@"Ignoring %@ ", oldCapabilities);
 
     if (existingService)
     {
@@ -373,18 +297,17 @@
             if (existingService.connected)
                 [existingService disconnect];
 
-            NSLog(@"Removing %@ (%@)", existingService.serviceDescription.friendlyName, existingService.serviceName);
+            DLog(@"Removing %@ (%@)", existingService.serviceDescription.friendlyName, existingService.serviceName);
             [self removeServiceWithId:existingService.serviceName];
         } else
         {
-            NSLog(@"Ignoring %@ (%@)", service.serviceDescription.friendlyName, service.serviceName);
+            DLog(@"Ignoring %@ (%@)", service.serviceDescription.friendlyName, service.serviceName);
             return;
         }
     }
 
     [_services setObject:service forKey:service.serviceName];
-    NSLog(@"Service added: %@. Current _services: %@", service.serviceName, _services);
-       
+    
     if (service.delegate == nil)
         service.delegate = self;
 
@@ -409,13 +332,8 @@
     NSArray *oldCapabilities = self.capabilities;
 
     [service disconnect];
-    NSLog(@"403 ");
-    if (![serviceId  isEqual: @"FireTV"]){
-        NSLog(@"405 ");
-        [_services removeObjectForKey:serviceId];
-    }
 
-    NSLog(@"Service removed: %@. Current _services: %@", serviceId, _services);
+    [_services removeObjectForKey:serviceId];
 
     [self updateCapabilitiesList:oldCapabilities];
 }
@@ -492,7 +410,6 @@
 
     if (self.connected)
     {
-        
         [[[DiscoveryManager sharedManager] deviceStore] addDevice:self];
 
         dispatch_on_main(^{ [self.delegate connectableDeviceReady:self]; });
@@ -535,7 +452,11 @@
     {
         if ([self.delegate respondsToSelector:@selector(connectableDevice:service:pairingRequiredOfType:withData:)])
             dispatch_on_main(^{ [self.delegate connectableDevice:self service:service pairingRequiredOfType:pairingType withData:pairingData]; });
-        
+        else
+        {
+            if (pairingType == DeviceServicePairingTypeAirPlayMirroring)
+                [(UIAlertView *)pairingData show];
+        }
     }
 }
 
@@ -688,67 +609,29 @@
 - (id<MediaPlayer>) mediaPlayer
 {
     __block id<MediaPlayer> foundPlayer;
-    NSLog(@"P 660");
-    NSLog(@"_services count: %lu", (unsigned long)_services.count);
-    if (!_services) {
-        NSLog(@"_services is nil");
-    }
-    
-    
+
     [_services enumerateKeysAndObjectsUsingBlock:^(id key, id service, BOOL *stop)
     {
-        NSLog(@"Key: %@, Value: %@", key, service);
-        
         if (![service respondsToSelector:@selector(mediaPlayer)])
-      
             return;
-        
-        NSLog(@"Service %@ supports mediaPlayer", key);
-        
-        id<MediaPlayer> player = [service mediaPlayer];
-        
-        NSLog(@"%@ %@",player, @"670");
-        
-        if ([player isKindOfClass:[AirPlayServiceHTTP class]]) {
-            NSLog(@"Player is of type AirPlayServiceHTTP 673");
-        } else {
-            NSLog(@"Player is NOT of type AirPlayServiceHTTP 675");
-        }
 
+        id<MediaPlayer> player = [service mediaPlayer];
+
+        if (player)
         {
-            NSLog(@"%d %@", player.mediaPlayerPriority, @"679 connectDevice"); // 75
-            NSLog(@"%d %@", foundPlayer.mediaPlayerPriority, @"680 connectDevice"); // 0
-            
-            
-            
-                if (foundPlayer && [player isKindOfClass:[AirPlayServiceHTTP class]]) {
-                    if (player.mediaPlayerPriority > foundPlayer.mediaPlayerPriority) {
-                        foundPlayer = player;
-                    }
-                } else {
+            if (foundPlayer)
+            {
+                if (player.mediaPlayerPriority > foundPlayer.mediaPlayerPriority)
+                {
                     foundPlayer = player;
                 }
-            
-            
-            
-//            if (foundPlayer)
-//            {
-//
-//
-//                if (player.mediaPlayerPriority > foundPlayer.mediaPlayerPriority)
-//                {
-//
-//
-//                    foundPlayer = player;
-//                }
-//            } else
-//            {
-//                foundPlayer = player;
-//            }
+            } else
+            {
+                foundPlayer = player;
+            }
         }
     }];
-    NSLog(@"%@ %@",foundPlayer, @"710");
-    NSLog(@"%d %@", foundPlayer ==  nil , @"711");
+
     return foundPlayer;
 }
 
